@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { runSpeedTest } from '../utils/speedtest';
-import { Wifi, MapPin, Play, Square, Award, ArrowDown, ArrowUp, RefreshCw } from 'lucide-react';
+import { Wifi, MapPin, Play, Square, Award, ArrowDown, ArrowUp, RefreshCw, Map } from 'lucide-react';
+import { INDIA_LOCATIONS } from '../utils/india_locations';
 
 export default function SpeedGauge({ apiBaseUrl, onTestComplete }) {
   const [carrier, setCarrier] = useState('');
@@ -8,6 +9,12 @@ export default function SpeedGauge({ apiBaseUrl, onTestComplete }) {
   const [lat, setLat] = useState(null);
   const [lon, setLon] = useState(null);
   const [locationName, setLocationName] = useState('');
+  
+  // India State/District/Village location states
+  const [locMode, setLocMode] = useState('india-list'); // 'india-list' or 'gps'
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [villageName, setVillageName] = useState('');
   
   const [testState, setTestState] = useState('idle'); // idle, testing, finished, error
   const [currentPhase, setCurrentPhase] = useState(''); // ping, download, upload
@@ -85,9 +92,79 @@ export default function SpeedGauge({ apiBaseUrl, onTestComplete }) {
       alert('Please enter your Carrier name (e.g. Jio, Airtel, T-Mobile, Verizon)');
       return;
     }
-    if (lat === null || lon === null) {
-      alert('Please fetch your location coordinates first to map this test.');
-      return;
+
+    let finalLat = lat;
+    let finalLon = lon;
+    let finalLocName = locationName;
+
+    // Resolve India selection if in list mode
+    if (locMode === 'india-list') {
+      if (!selectedState) {
+        alert('Please select an Indian State.');
+        return;
+      }
+      if (!selectedDistrict) {
+        alert('Please select a District.');
+        return;
+      }
+      if (!villageName.trim()) {
+        alert('Please enter a Village/Town name.');
+        return;
+      }
+
+      setTestState('loading_location');
+      try {
+        const query = `${villageName.trim()}, ${selectedDistrict}, ${selectedState}, India`;
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+        
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'NetCrowdSpeedMonitor' }
+        });
+        const data = await res.json();
+        
+        if (data && data.length > 0) {
+          finalLat = parseFloat(data[0].lat);
+          finalLon = parseFloat(data[0].lon);
+          finalLocName = `${villageName.trim()}, ${selectedDistrict}, ${selectedState}`;
+          setLat(finalLat);
+          setLon(finalLon);
+          setLocationName(finalLocName);
+        } else {
+          // Fallback to District center
+          console.warn('OSM Village coordinates not found. Querying district center...');
+          const districtQuery = `${selectedDistrict}, ${selectedState}, India`;
+          const distUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(districtQuery)}&format=json&limit=1`;
+          const distRes = await fetch(distUrl, { headers: { 'User-Agent': 'NetCrowdSpeedMonitor' } });
+          const distData = await distRes.json();
+          
+          if (distData && distData.length > 0) {
+            finalLat = parseFloat(distData[0].lat);
+            finalLon = parseFloat(distData[0].lon);
+            finalLocName = `${villageName.trim()} (Est.), ${selectedDistrict}, ${selectedState}`;
+            setLat(finalLat);
+            setLon(finalLon);
+            setLocationName(finalLocName);
+          } else {
+            throw new Error('District center coordinates not found');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to resolve coordinates:', err);
+        // Fallback center of India coordinates
+        finalLat = 20.5937;
+        finalLon = 78.9629;
+        finalLocName = `${villageName.trim()}, ${selectedDistrict}, ${selectedState}`;
+        setLat(finalLat);
+        setLon(finalLon);
+        setLocationName(finalLocName);
+      }
+      setTestState('idle'); // Reset loader state
+    } else {
+      // GPS mode validation
+      if (finalLat === null || finalLon === null) {
+        alert('Please click the Locate button to resolve your device GPS coordinates first.');
+        return;
+      }
     }
 
     setErrorMessage('');
@@ -136,9 +213,9 @@ export default function SpeedGauge({ apiBaseUrl, onTestComplete }) {
           upload_speed: results.upload,
           ping: results.ping,
           jitter: results.jitter,
-          latitude: lat,
-          longitude: lon,
-          location_name: locationName,
+          latitude: finalLat,
+          longitude: finalLon,
+          location_name: finalLocName,
           device_info: navigator.userAgent
         })
       });
@@ -231,35 +308,125 @@ export default function SpeedGauge({ apiBaseUrl, onTestComplete }) {
           </div>
 
           <div className="input-group">
-            <label>3. Your Location Coordinates</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                className="input-control"
-                placeholder="Click Locate Me or type city name"
-                value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-              />
+            <label>3. Location Mode</label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
               <button
                 type="button"
-                className="btn-primary"
-                onClick={requestLocation}
-                style={{ padding: '0 16px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--border-color)', boxShadow: 'none' }}
+                className="input-control"
+                style={{
+                  flex: 1,
+                  background: locMode === 'india-list' ? 'rgba(0, 242, 254, 0.12)' : 'rgba(255,255,255,0.02)',
+                  borderColor: locMode === 'india-list' ? 'var(--color-cyan)' : 'var(--border-color)',
+                  color: locMode === 'india-list' ? 'white' : 'var(--color-text-secondary)',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setLocMode('india-list')}
               >
-                <MapPin size={16} />
+                India Directory
+              </button>
+              <button
+                type="button"
+                className="input-control"
+                style={{
+                  flex: 1,
+                  background: locMode === 'gps' ? 'rgba(0, 242, 254, 0.12)' : 'rgba(255,255,255,0.02)',
+                  borderColor: locMode === 'gps' ? 'var(--color-cyan)' : 'var(--border-color)',
+                  color: locMode === 'gps' ? 'white' : 'var(--color-text-secondary)',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setLocMode('gps')}
+              >
+                Device GPS
               </button>
             </div>
-            {lat !== null && (
-              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-                Coordinates: {lat.toFixed(5)}, {lon.toFixed(5)}
-              </span>
-            )}
           </div>
+
+          {locMode === 'india-list' ? (
+            <>
+              <div className="input-group">
+                <label>Select State</label>
+                <select
+                  className="input-control"
+                  value={selectedState}
+                  onChange={(e) => {
+                    setSelectedState(e.target.value);
+                    setSelectedDistrict('');
+                  }}
+                >
+                  <option value="">-- Choose State --</option>
+                  {Object.keys(INDIA_LOCATIONS).sort().map(state => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedState && (
+                <div className="input-group">
+                  <label>Select District</label>
+                  <select
+                    className="input-control"
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                  >
+                    <option value="">-- Choose District --</option>
+                    {INDIA_LOCATIONS[selectedState].sort().map(dist => (
+                      <option key={dist} value={dist}>{dist}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedDistrict && (
+                <div className="input-group" style={{ animation: 'slide-in 0.3s ease-out' }}>
+                  <label>Village / Town Name</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    placeholder="Type Village/Town name (e.g. Shirdi, Vagator)"
+                    value={villageName}
+                    onChange={(e) => setVillageName(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="input-group">
+              <label>Device GPS Coordinates</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="input-control"
+                  placeholder="Click Locate button"
+                  value={locationName}
+                  readOnly
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={requestLocation}
+                  style={{ padding: '0 16px', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--border-color)', boxShadow: 'none' }}
+                >
+                  <MapPin size={16} />
+                </button>
+              </div>
+              {lat !== null && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                  Coordinates: {lat.toFixed(5)}, {lon.toFixed(5)}
+                </span>
+              )}
+            </div>
+          )}
 
           <button
             className="btn-primary"
             onClick={startTest}
-            disabled={!carrier.trim() || lat === null}
+            disabled={
+              !carrier.trim() || 
+              (locMode === 'gps' && lat === null) || 
+              (locMode === 'india-list' && (!selectedState || !selectedDistrict || !villageName.trim()))
+            }
             style={{ marginTop: '12px' }}
           >
             <Play size={18} /> Run speed test
