@@ -11,6 +11,7 @@ const SEED_DATA = [
   { carrier: 'Airtel', network_type: '4G', download_speed: 32.4, upload_speed: 9.1, ping: 29.2, jitter: 4.8, latitude: 28.6139, longitude: 77.2090, location_name: 'Delhi, India', device_info: 'Mozilla/5.0 (Linux; Android 13; OnePlus 11)' },
   { carrier: 'T-Mobile', network_type: '5G', download_speed: 215.1, upload_speed: 41.6, ping: 22.0, jitter: 3.2, latitude: 37.7749, longitude: -122.4194, location_name: 'San Francisco, USA', device_info: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
   { carrier: 'EE', network_type: '4G', download_speed: 48.7, upload_speed: 12.3, ping: 26.4, jitter: 3.9, latitude: 51.5074, longitude: -0.1278, location_name: 'London, UK', device_info: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+   { carrier: 'voda', network_type: '4G', download_speed: 190.2, upload_speed: 35.4, ping: 15.5, jitter: 2.1, latitude: 19.0760, longitude: 72.8777, location_name: 'kolkata, India', device_info: 'Mozilla/5.0 (Linux; Android 24; SM-S718B)' },
   { carrier: 'SoftBank', network_type: '5G', download_speed: 154.6, upload_speed: 31.2, ping: 16.8, jitter: 1.9, latitude: 35.6762, longitude: 139.6503, location_name: 'Tokyo, Japan', device_info: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X)' }
 ];
 
